@@ -1,0 +1,3 @@
+# Chi can 2 thu vien nay de chay unit test (torch/transformers/neo4j/gemini duoc gia lap trong tests/conftest.py)
+pytest>=8.0
+python-dotenv>=1.0
