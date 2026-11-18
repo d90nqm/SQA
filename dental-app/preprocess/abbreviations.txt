@@ -1,3 +1,0 @@
-bn,bệnh nhân
-vm,viêm màng
-nha,nha chu

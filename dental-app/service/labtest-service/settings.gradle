@@ -1,4 +1,0 @@
-rootProject.name = 'labtest-service'
-
-includeBuild '../common'
-

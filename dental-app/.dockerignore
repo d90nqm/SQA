@@ -1,7 +1,0 @@
-.git
-.gradle
-.idea
-**/build
-**/target
-**/*.jar
-!service/common/build/libs/*.jar
