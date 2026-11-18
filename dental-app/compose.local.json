@@ -1,0 +1,934 @@
+{
+  "name": "dental-local",
+  "networks": {
+    "microservice-network": {
+      "name": "dental-local_microservice-network",
+      "driver": "bridge",
+      "ipam": {}
+    }
+  },
+  "services": {
+    "appointment-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/appointment-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "redis": {
+          "condition": "service_started",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "FEIGN_DOCTOR_SERVICE_URL": "http://doctor-service:8090/doctor-service",
+        "FEIGN_INVOICE_SERVICE_URL": "http://invoice-service:8091/invoice-service",
+        "FEIGN_NOTIFICATION_SERVICE_URL": "http://notification-service:8094/notification-service",
+        "FEIGN_USER_SERVICE_URL": "http://user-service:8085/user-service/users",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/appointment-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "SPRING_DATA_REDIS_HOST": "redis",
+        "SPRING_DATA_REDIS_PORT": "6379",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8082,
+          "published": "8082",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "axon-server": {
+      "command": null,
+      "entrypoint": null,
+      "image": "axoniq/axonserver:4.6.8",
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8124,
+          "published": "8124",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        },
+        {
+          "mode": "ingress",
+          "target": 8024,
+          "published": "8024",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "axon-data",
+          "target": "/axonserver/data",
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "axon-events",
+          "target": "/axonserver/events",
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "axon-config",
+          "target": "/axonserver/config",
+          "volume": {}
+        }
+      ],
+      "environment": {
+        "JAVA_TOOL_OPTIONS": "-Xms128m -Xmx384m -XX:ActiveProcessorCount=2"
+      },
+      "mem_limit": "768m"
+    },
+    "clinical-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/clinical-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/clinical-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8083,
+          "published": "8083",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "doctor-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/doctor-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/doctor-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8090,
+          "published": "8090",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "gateway": {
+      "build": {
+        "context": ".",
+        "dockerfile": "gateway/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "SERVER_PORT": "8080",
+        "SPRING_APPLICATION_NAME": "gateway",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8080,
+          "published": "8080",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "insurance-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/insurance-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/insurance-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8087,
+          "published": "8087",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "inventory-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/inventory-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "INVOICE_SERVICE_URL": "http://invoice-service:8091",
+        "PATIENT_SERVICE_URL": "http://patient-service:8089",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/inventory-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "USER_SERVICE_URL": "http://user-service:8085",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8084,
+          "published": "8084",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "invoice-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/invoice-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPOINTMENT_SERVICE_URL": "http://appointment-service:8082",
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "INVENTORY_SERVICE_URL": "http://inventory-service:8084",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/invoice-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8091,
+          "published": "8091",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "labtest-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/labtest-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "FEIGN_APPOINTMENT_SERVICE_URL": "http://appointment-service:8082/appointment-service/appointments",
+        "FEIGN_DOCTOR_SERVICE_URL": "http://doctor-service:8090/doctor-service/doctors",
+        "FEIGN_INVOICE_SERVICE_URL": "http://invoice-service:8091/invoice-service/invoices",
+        "FEIGN_PATIENT_SERVICE_URL": "http://patient-service:8089/patient-service/patients",
+        "FEIGN_USER_SERVICE_URL": "http://user-service:8085/user-service/users",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/labtest-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8088,
+          "published": "8088",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "notification-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/notification-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "INVENTORY_SERVICE_URL": "http://inventory-service:8084",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/notification-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "SPRING_MAIL_HOST": "127.0.0.1",
+        "SPRING_MAIL_PORT": "2525",
+        "SPRING_MAIL_USERNAME": "local-disabled",
+        "SPRING_MAIL_PASSWORD": "local-disabled",
+        "SPRING_MAIL_PROPERTIES_MAIL_SMTP_CONNECTIONTIMEOUT": "2000",
+        "SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT": "2000",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8094,
+          "published": "8094",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "patient-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/patient-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/patient-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8089,
+          "published": "8089",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "payment-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/payment-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "INVENTORY_SERVICE_URL": "http://inventory-service:8084",
+        "INVOICE_SERVICE_URL": "http://invoice-service:8091",
+        "PATIENT_SERVICE_URL": "http://patient-service:8089",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/payment-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "PAYOS_CLIENT_ID": "local-disabled",
+        "PAYOS_API_KEY": "local-disabled",
+        "PAYOS_CHECKSUM_KEY": "0000000000000000000000000000000000000000000000000000000000000000",
+        "DENTAL_JWT_PUBLIC_KEY": "${DENTAL_JWT_PUBLIC_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8086,
+          "published": "8086",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "postgres": {
+      "command": null,
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "postgres",
+        "POSTGRES_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "POSTGRES_USER": "postgres"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U postgres"
+        ],
+        "timeout": "5s",
+        "interval": "5s",
+        "retries": 10
+      },
+      "image": "postgres:16-alpine",
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 5432,
+          "published": "15432",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "postgres-data",
+          "target": "/var/lib/postgresql/data",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/init-all-databases.sh",
+          "target": "/docker-entrypoint-initdb.d/01-init-all-databases.sh",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/user-service.sql",
+          "target": "/scripts/user-service.sql",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/patient-service.sql",
+          "target": "/scripts/patient-service.sql",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/doctor-service.sql",
+          "target": "/scripts/doctor-service.sql",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/appointment-service.sql",
+          "target": "/scripts/appointment-service.sql",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/payment-service.sql",
+          "target": "/scripts/payment-service.sql",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/labtest-service.sql",
+          "target": "/scripts/labtest-service.sql",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/invoice-service.sql",
+          "target": "/scripts/invoice-service.sql",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/inventory-service.sql",
+          "target": "/scripts/inventory-service.sql",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/insurance-service.sql",
+          "target": "/scripts/insurance-service.sql",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/axon.sql",
+          "target": "/scripts/axon.sql",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./scripts/local-admin.sql",
+          "target": "/docker-entrypoint-initdb.d/02-local-admin.sql",
+          "read_only": true
+        }
+      ]
+    },
+    "prescription-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/prescription-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "INVENTORY_SERVICE_URL": "http://inventory-service:8084",
+        "INVOICE_SERVICE_URL": "http://invoice-service:8091",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/prescription-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8081,
+          "published": "8081",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    },
+    "redis": {
+      "command": [
+        "redis-server",
+        "--appendonly",
+        "yes"
+      ],
+      "entrypoint": null,
+      "image": "redis:7",
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 6379,
+          "published": "6379",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "redis-data",
+          "target": "/data",
+          "volume": {}
+        }
+      ],
+      "environment": {}
+    },
+    "registry-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/registry-service/Dockerfile.local"
+      },
+      "command": null,
+      "entrypoint": null,
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:8761/ > /dev/null || exit 1"
+        ],
+        "timeout": "10s",
+        "interval": "10s",
+        "retries": 10,
+        "start_period": "40s"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8761,
+          "published": "8761",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "environment": {
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2"
+      },
+      "mem_limit": "512m"
+    },
+    "user-service": {
+      "build": {
+        "context": ".",
+        "dockerfile": "service/user-service/Dockerfile.local"
+      },
+      "command": null,
+      "depends_on": {
+        "axon-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "registry-service": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+        "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+        "PATIENT_SERVICE_URL": "http://patient-service:8089",
+        "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+        "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+        "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgres:5432/user-service",
+        "SPRING_DATASOURCE_USERNAME": "postgres",
+        "JAVA_OPTS": "-Xms64m -Xmx256m -XX:ActiveProcessorCount=2",
+        "DENTAL_JWT_PRIVATE_KEY": "${DENTAL_JWT_PRIVATE_KEY:-}"
+      },
+      "networks": {
+        "microservice-network": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8085,
+          "published": "8085",
+          "protocol": "tcp",
+          "host_ip": "127.0.0.1"
+        }
+      ],
+      "restart": "unless-stopped",
+      "mem_limit": "512m"
+    }
+  },
+  "volumes": {
+    "axon-config": {
+      "name": "dental-local_axon-config"
+    },
+    "axon-data": {
+      "name": "dental-local_axon-data"
+    },
+    "axon-events": {
+      "name": "dental-local_axon-events"
+    },
+    "mongodb-data": {
+      "name": "dental-local_mongodb-data"
+    },
+    "neo4j-data": {
+      "name": "dental-local_neo4j-data"
+    },
+    "neo4j-import": {
+      "name": "dental-local_neo4j-import"
+    },
+    "neo4j-logs": {
+      "name": "dental-local_neo4j-logs"
+    },
+    "neo4j-plugins": {
+      "name": "dental-local_neo4j-plugins"
+    },
+    "pgadmin-data": {
+      "name": "dental-local_pgadmin-data"
+    },
+    "postgres-data": {
+      "name": "dental-local_postgres-data"
+    },
+    "redis-data": {
+      "name": "dental-local_redis-data"
+    }
+  },
+  "x-common-env": {
+    "AXON_AXONSERVER_SERVERS": "axon-server:8124",
+    "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE": "http://registry-service:8761/eureka",
+    "SPRING_DATASOURCE_DRIVER_CLASS_NAME": "org.postgresql.Driver",
+    "SPRING_DATASOURCE_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+    "SPRING_DATASOURCE_USERNAME": "postgres"
+  },
+  "x-pg-template": {
+    "environment": {
+      "POSTGRES_PASSWORD": "${DENTAL_DB_PASSWORD:-password}",
+      "POSTGRES_USER": "postgres"
+    },
+    "healthcheck": {
+      "interval": "5s",
+      "retries": 10,
+      "test": [
+        "CMD-SHELL",
+        "pg_isready -U postgres"
+      ],
+      "timeout": "5s"
+    },
+    "image": "postgres:16-alpine",
+    "networks": [
+      "microservice-network"
+    ],
+    "restart": "always"
+  },
+  "x-spring-template": {
+    "depends_on": {
+      "registry-service": {
+        "condition": "service_healthy"
+      }
+    },
+    "networks": [
+      "microservice-network"
+    ],
+    "restart": "always"
+  }
+}
