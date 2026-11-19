@@ -20,4 +20,4 @@ venv/
 intent_model/
 ner_model_final/
 
-.env
+.envtests/postman/*/reports/runtime_environment.json

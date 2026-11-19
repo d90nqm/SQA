@@ -1,0 +1,404 @@
+{
+  "info": {
+    "_postman_id": "dfe585d1-dd72-45a6-b7f2-59a0231b4048",
+    "name": "Payment",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "PAY-01 Create bank transfer payment",
+      "item": [
+        {
+          "name": "PAY-01 Prepare disposable invoice",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('invoiceId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('invoiceItemId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('appointmentId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "const body = pm.response.json();",
+                  "const schema = {",
+                  "  type: 'object',",
+                  "  required: ['id', 'appointmentId', 'totalAmount', 'patientTotalPay', 'status', 'items'],",
+                  "  properties: {",
+                  "    id: { type: 'string' },",
+                  "    appointmentId: { type: 'string' },",
+                  "    totalAmount: { type: 'number' },",
+                  "    patientTotalPay: { type: 'number' },",
+                  "    status: { type: 'string' },",
+                  "    items: { type: 'array', minItems: 1 }",
+                  "  }",
+                  "};",
+                  "pm.test('PAY-01 prepare: invoice status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('PAY-01 prepare: invoice schema is valid', function () {",
+                  "  pm.response.to.have.jsonSchema(schema);",
+                  "});",
+                  "pm.test('PAY-01 prepare: invoice is PENDING', function () {",
+                  "  pm.expect(body.status).to.eql('PENDING');",
+                  "});",
+                  "pm.environment.set('invoiceId', body.id);",
+                  "pm.environment.set('appointmentId', body.appointmentId);",
+                  "pm.environment.set('setup_responseTimeMs', String(pm.response.responseTime));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/invoice-service/invoices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "invoice-service",
+                "invoices"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{invoiceId}}\",\n  \"receptionistId\": \"{{receptionistId}}\",\n  \"appointmentId\": \"{{appointmentId}}\",\n  \"currency\": \"VND\",\n  \"items\": [\n    {\n      \"id\": \"{{invoiceItemId}}\",\n      \"referenceId\": \"{{referenceId}}\",\n      \"serviceType\": \"{{serviceType}}\",\n      \"quantity\": 1,\n      \"description\": \"{{serviceDescription}}\",\n      \"unitPrice\": {{unitPrice}}\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PAY-01 Create bank transfer payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "const body = pm.response.json();",
+                  "pm.test('PAY-01 status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('PAY-01 response has required fields', function () {",
+                  "  pm.expect(body).to.include.all.keys('paymentId', 'invoiceId', 'totalAmount', 'status', 'paymentMethod', 'transactionId', 'paymentUrl');",
+                  "});",
+                  "pm.test('PAY-01 invoiceId matches the disposable invoice', function () {",
+                  "  pm.expect(body.invoiceId).to.eql(pm.environment.get('invoiceId'));",
+                  "});",
+                  "pm.test('PAY-01 totalAmount equals invoice amount', function () {",
+                  "  pm.expect(body.totalAmount).to.eql(Number(pm.environment.get('unitPrice')));",
+                  "});",
+                  "pm.test('PAY-01 status is PENDING', function () {",
+                  "  pm.expect(body.status).to.eql('PENDING');",
+                  "});",
+                  "pm.test('PAY-01 paymentMethod is BANK_TRANSFER', function () {",
+                  "  pm.expect(body.paymentMethod).to.eql('BANK_TRANSFER');",
+                  "});",
+                  "pm.test('PAY-01 transactionId (orderCode) and paymentUrl are not empty', function () {",
+                  "  pm.expect(String(body.transactionId)).to.not.be.empty;",
+                  "  pm.expect(body.paymentUrl).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.environment.set('paymentId', body.paymentId);",
+                  "pm.environment.set('orderCode', String(body.transactionId));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payment-service/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-service",
+                "payments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoiceId\": \"{{invoiceId}}\",\n  \"paymentMethod\": \"BANK_TRANSFER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PAY-01 Check invoice still PENDING",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "pm.test('PAY-01 invoice status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('PAY-01 invoice keeps status PENDING', function () {",
+                  "  pm.expect(pm.response.json().status).to.eql('PENDING');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/invoice-service/invoices/{{invoiceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "invoice-service",
+                "invoices",
+                "{{invoiceId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "PAY-02 Callback success",
+      "item": [
+        {
+          "name": "PAY-02 Callback success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "const body = pm.response.json();",
+                  "pm.test('PAY-02 status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('PAY-02 payment status is SUCCESSFUL', function () {",
+                  "  pm.expect(body.status).to.eql('SUCCESSFUL');",
+                  "});",
+                  "pm.test('PAY-02 paidAt is set', function () {",
+                  "  pm.expect(body.paidAt).to.not.be.null;",
+                  "  pm.expect(body.paidAt).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment-service/payments/callback?orderCode={{orderCode}}&status=PAID&code=00&cancel=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-service",
+                "payments",
+                "callback"
+              ],
+              "query": [
+                {
+                  "key": "orderCode",
+                  "value": "{{orderCode}}"
+                },
+                {
+                  "key": "status",
+                  "value": "PAID"
+                },
+                {
+                  "key": "code",
+                  "value": "00"
+                },
+                {
+                  "key": "cancel",
+                  "value": "false"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PAY-02 Check invoice becomes PAID",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// cho Axon/Saga dong bo trang thai sang invoice-service",
+                  "setTimeout(function () {}, 3000);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "pm.test('PAY-02 invoice status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('PAY-02 invoice status is PAID after callback', function () {",
+                  "  pm.expect(pm.response.json().status).to.eql('PAID');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/invoice-service/invoices/{{invoiceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "invoice-service",
+                "invoices",
+                "{{invoiceId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "PAY-03 Get payment status",
+      "item": [
+        {
+          "name": "PAY-03 Get payment status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "const body = pm.response.json();",
+                  "pm.test('PAY-03 status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('PAY-03 returns the latest payment of the invoice', function () {",
+                  "  pm.expect(body.paymentId).to.eql(pm.environment.get('paymentId'));",
+                  "  pm.expect(body.invoiceId).to.eql(pm.environment.get('invoiceId'));",
+                  "});",
+                  "pm.test('PAY-03 status is a valid payment status', function () {",
+                  "  pm.expect([\"PENDING\",\"SUCCESSFUL\",\"FAILED\",\"CANCELLED\",\"REFUNDED\"]).to.include(body.status);",
+                  "});",
+                  "console.log('PAY-03 actual payment status = ' + body.status);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment-service/payments/status?invoiceId={{invoiceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-service",
+                "payments",
+                "status"
+              ],
+              "query": [
+                {
+                  "key": "invoiceId",
+                  "value": "{{invoiceId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "PAY-04 Get payment by id",
+      "item": [
+        {
+          "name": "PAY-04 Get payment by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "const body = pm.response.json();",
+                  "pm.test('PAY-04 status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('PAY-04 id, invoiceId and orderCode match the saved context', function () {",
+                  "  pm.expect(body.paymentId).to.eql(pm.environment.get('paymentId'));",
+                  "  pm.expect(body.invoiceId).to.eql(pm.environment.get('invoiceId'));",
+                  "  pm.expect(String(body.transactionId)).to.eql(pm.environment.get('orderCode'));",
+                  "});",
+                  "pm.test('PAY-04 paymentMethod is BANK_TRANSFER', function () {",
+                  "  pm.expect(body.paymentMethod).to.eql('BANK_TRANSFER');",
+                  "});",
+                  "pm.test('PAY-04 final status is a valid payment status', function () {",
+                  "  pm.expect([\"PENDING\",\"SUCCESSFUL\",\"FAILED\",\"CANCELLED\",\"REFUNDED\"]).to.include(body.status);",
+                  "});",
+                  "console.log('PAY-04 final payment status = ' + body.status);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment-service/payments/{{paymentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-service",
+                "payments",
+                "{{paymentId}}"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

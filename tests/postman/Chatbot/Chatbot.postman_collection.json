@@ -1,0 +1,399 @@
+{
+  "info": {
+    "_postman_id": "786696f6-642b-4206-8b0b-68566ff0bf09",
+    "name": "Chatbot",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "BOT-API-01 Health",
+      "item": [
+        {
+          "name": "BOT-API-01 Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "pm.test('BOT-API-01 status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('BOT-API-01 service is healthy', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('healthy');",
+                  "  pm.expect(body.service).to.eql('chatbot-service');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOT-API-02 Chat success",
+      "item": [
+        {
+          "name": "BOT-API-02 Chat success",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('userId', 'postman_run_' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "const body = pm.response.json();",
+                  "pm.test('BOT-API-02 status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('BOT-API-02 status is success', function () {",
+                  "  pm.expect(body.status).to.eql('success');",
+                  "});",
+                  "pm.test('BOT-API-02 response is a non-empty string', function () {",
+                  "  pm.expect(body.response).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.environment.set('chat_responseTimeMs', String(pm.response.responseTime));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{userId}}\",\n  \"message\": \"Toi bi dau rang sau\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BOT-API-02 Check history created",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 1000);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "const rows = pm.response.json();",
+                  "pm.test('BOT-API-02 history status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('BOT-API-02 history has at least 2 records (user and bot)', function () {",
+                  "  pm.expect(rows).to.be.an('array');",
+                  "  pm.expect(rows.length).to.be.at.least(2);",
+                  "  pm.expect(rows.map(r => r.role)).to.include.members(['user', 'bot']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/history/{{userId}}?limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "history",
+                "{{userId}}"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOT-API-03 Chat invalid or empty",
+      "item": [
+        {
+          "name": "BOT-API-03 Chat missing message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "pm.test('BOT-API-03 missing message returns 422', function () {",
+                  "  pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test('BOT-API-03 validation detail points to message field', function () {",
+                  "  const detail = pm.response.json().detail;",
+                  "  pm.expect(detail).to.be.an('array').and.not.empty;",
+                  "  pm.expect(JSON.stringify(detail[0].loc)).to.include('message');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"postman_missing_message_user\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BOT-API-03 Chat empty message",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('emptyUserId', 'postman_empty_' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "const body = pm.response.json();",
+                  "pm.test('BOT-API-03 empty message currently returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('BOT-API-03 empty message status is success and response is a string', function () {",
+                  "  pm.expect(body.status).to.eql('success');",
+                  "  pm.expect(body.response).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{emptyUserId}}\",\n  \"message\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BOT-API-03 Check history recorded",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(function () {}, 1000);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "pm.test('BOT-API-03 history status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('BOT-API-03 history is recorded for the empty message user', function () {",
+                  "  const rows = pm.response.json();",
+                  "  pm.expect(rows).to.be.an('array');",
+                  "  pm.expect(rows.length).to.be.at.least(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/history/{{emptyUserId}}?limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "history",
+                "{{emptyUserId}}"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOT-API-04 History",
+      "item": [
+        {
+          "name": "BOT-API-04 History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 400) { console.log('RESPONSE BODY: ' + pm.response.text()); }",
+                  "const rows = pm.response.json();",
+                  "pm.test('BOT-API-04 status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('BOT-API-04 response is an array', function () {",
+                  "  pm.expect(rows).to.be.an('array').and.not.empty;",
+                  "});",
+                  "pm.test('BOT-API-04 contains the user message that was sent', function () {",
+                  "  const userRows = rows.filter(r => r.role === 'user');",
+                  "  pm.expect(userRows.length).to.be.at.least(1);",
+                  "  pm.expect(userRows.map(r => r.content)).to.include('Toi bi dau rang sau');",
+                  "});",
+                  "pm.test('BOT-API-04 contains a non-empty bot message', function () {",
+                  "  const botRows = rows.filter(r => r.role === 'bot');",
+                  "  pm.expect(botRows.length).to.be.at.least(1);",
+                  "  pm.expect(botRows[0].content).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.test('BOT-API-04 every record has id and valid timestamp', function () {",
+                  "  rows.forEach(function (r) {",
+                  "    pm.expect(r.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(isNaN(Date.parse(r.timestamp))).to.be.false;",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/history/{{userId}}?limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "history",
+                "{{userId}}"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
