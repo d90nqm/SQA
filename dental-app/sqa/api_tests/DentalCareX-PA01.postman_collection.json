@@ -1,0 +1,817 @@
+{
+  "info": {
+    "name": "DentalCareX - PA01 - Prescription, Inventory and Saga",
+    "description": "5_tool_test.xlsx: PA01_Testcase. Select the DentalCareX PA Local environment and run the collection in order with the local CheckDB helper.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// This collection writes test fixtures. Keep targets on this machine.",
+          "for (const name of [\"baseUrl\", \"checkdbUrl\"]) {",
+          "    const url = pm.environment.get(name) || \"\";",
+          "    if (!/^http:\\/\\/(?:localhost|127\\.0\\.0\\.1):\\d+$/.test(url)) {",
+          "        throw new Error(\"Select the DentalCareX PA Local environment and keep \" + name + \" on loopback.\");",
+          "    }",
+          "    pm.variables.set(name, url);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "TC_API_001 - Login",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "for (const name of [\"authToken\", \"actorId\", \"fixture\", \"dispenseOrderId\", \"negativePrescriptionId\"]) {",
+              "        pm.variables.unset(name);",
+              "    }",
+              "    pm.variables.set(\"runId\", \"\");",
+              "",
+              "    const phone = pm.variables.get(\"fixturePhone\") || pm.environment.get(\"doctorPhone\");",
+              "    const password = pm.variables.get(\"fixturePassword\") || pm.environment.get(\"doctorPassword\");",
+              "    if (!phone || !password) {",
+              "        throw new Error(\"Enter doctorPhone and doctorPassword in the selected environment.\");",
+              "    }",
+              "    pm.variables.set(\"loginBody\", JSON.stringify({phone, password}));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Excel Test Case ID: TC_API_001",
+              "const caseId = \"TC_API_001\";",
+              "function setCheck(name, assertion) { pm.test(caseId + \" | \" + name, assertion); }",
+              "",
+              "    const token = pm.response.headers.get(\"Authorization\");",
+              "    const actor = pm.response.code === 200 ? pm.response.json() : null;",
+              "    const id = actor && actor.id;",
+              "    const expectedRole = \"DOCTOR\";",
+              "    const correctRole = actor && (actor.primaryRole === expectedRole ||",
+              "        (Array.isArray(actor.roles) && actor.roles.includes(expectedRole)));",
+              "    setCheck(\"HTTP 200\", () => pm.expect(pm.response.code).to.equal(200));",
+              "    setCheck(\"JWT and actor ID returned\", () => {",
+              "        pm.expect(token).to.match(/^(Bearer )?[^.]+\\.[^.]+\\.[^.]+$/i);",
+              "        pm.expect(id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);",
+              "        pm.expect(correctRole, \"Expected role \" + expectedRole).to.equal(true);",
+              "    });",
+              "    const cleanNext = null;",
+              "    if (token && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || \"\") && correctRole) {",
+              "        pm.variables.set(\"authToken\", token.replace(/^Bearer\\s+/i, \"\"));",
+              "        pm.variables.set(\"actorId\", id);",
+              "        ",
+              "    } else {",
+              "        pm.execution.setNextRequest(cleanNext);",
+              "    }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/user-service/users/login",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{loginBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "PA01 setup - create test fixtures",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const caseId = \"PA01 setup - create test fixtures\";",
+              "function setCheck(name, assertion) { pm.test(caseId + \" | \" + name, assertion); }",
+              "",
+              "    setCheck(\"CheckDB fixture prepared (HTTP 200)\", () =>",
+              "        pm.expect(pm.response.code, pm.response.text()).to.equal(200));",
+              "    if (pm.response.code !== 200) {",
+              "        pm.execution.setNextRequest(null);",
+              "    } else {",
+              "        const fixture = pm.response.json();",
+              "        pm.variables.set(\"runId\", fixture.runId);",
+              "        pm.variables.set(\"fixture\", JSON.stringify(fixture));",
+              "        for (const [name, value] of Object.entries(fixture)) {",
+              "            if (typeof value === \"string\") pm.variables.set(name, value);",
+              "        }",
+              "        const validMedicine = fixture.medicine && fixture.medicine.valid;",
+              "        if (validMedicine) pm.variables.set(\"medicineId\", validMedicine.id);",
+              "        if (fixture.histories) {",
+              "            pm.variables.set(\"invalidHistoryId\", fixture.histories.insufficient.historyId);",
+              "            pm.variables.set(\"validHistoryId\", fixture.histories.valid.historyId);",
+              "        }",
+              "    }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-SQA-Key",
+            "value": "{{checkdbKey}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{checkdbUrl}}/v1/begin",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"kind\": \"PA01\",\n  \"actorId\": \"{{actorId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "TC_API_002 - Create valid prescription",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const f = JSON.parse(pm.variables.get(\"fixture\"));",
+              "const label = \"valid\";",
+              "const {appointmentId, historyId} = f.histories[label];",
+              "const {id, name} = f.medicine[label];",
+              "pm.variables.set(\"rxBody\", JSON.stringify({",
+              "    appointmentId, medicalHistoryId: historyId, doctorId: f.doctorId, patientId: f.patientId,",
+              "    items: [{id: pm.variables.replaceIn(\"{{$guid}}\"), medicineId: id, name, quantity: 5,",
+              "        unitPrice: 1000, unit: \"tablet\", dosage: \"1 tablet\", frequency: \"Daily\",",
+              "        duration: \"5 days\", instruction: \"SQA API fixture\"}]",
+              "}));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC_API_002",
+              "const caseId = \"TC_API_002\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 202\", () => pm.expect([202]).to.include(pm.response.code));",
+              "    const prescriptionId = pm.response.code === 202 ? pm.response.json().id : null;",
+              "    setCheck(\"Tracking ID returned\", () => pm.expect(prescriptionId).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i));",
+              "    if (prescriptionId) {",
+              "        // Wait for committed downstream effects. A response of 202 is only acknowledgment.",
+              "        try {",
+              "            const deadline = Date.now() + 30000;",
+              "            let state;",
+              "            do {",
+              "                state = await checkDB(\"rx\", \"valid\");",
+              "                const released = state.orders.some(order =>",
+              "                    order.prescription === prescriptionId && order.status === \"RELEASED\");",
+              "                if (released && state.invoiceItems.length > 0 && state.ledgerCount > 0) break;",
+              "                await new Promise(resolve => setTimeout(resolve, 900));",
+              "            } while (Date.now() < deadline);",
+              "            setCheck(\"CheckDB | matching order reached RELEASED\", () => {",
+              "                pm.expect(state.orders).to.have.lengthOf(1);",
+              "                pm.expect(state.orders[0]).to.include({",
+              "                    prescription: prescriptionId, status: \"RELEASED\", doctor_id: fixture().doctorId",
+              "                });",
+              "            });",
+              "            setCheck(\"CheckDB | stock, ledger and invoice reflect five units\", () => {",
+              "                pm.expect(state.lots.map(lot => lot.quantity_on_hand)).to.eql([7, 12]);",
+              "                pm.expect(state.ledgerCount).to.be.greaterThan(0);",
+              "                pm.expect(state.invoiceItems).to.deep.include({",
+              "                    reference_id: fixture().medicine.valid.id, quantity: 5, unit_price: 1000",
+              "                });",
+              "            });",
+              "        } catch (error) {",
+              "            setCheck(\"CheckDB | await Saga\", () => { throw error; });",
+              "        }",
+              "    }",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/prescription-billing-service/prescription-billings",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{rxBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "TC_API_003 - FEFO allocation",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "",
+              "    // Capture the database before this read-only test so the comparison is independent of TC_API_002.",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/rx\", method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: \"valid\"})}",
+              "    });",
+              "    pm.variables.set(\"fefoBefore\", response.code === 200 ? response.text() : \"\");",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC_API_003",
+              "const caseId = \"TC_API_003\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 200\", () => pm.expect([200]).to.include(pm.response.code));",
+              "    if (pm.response.code === 200) {",
+              "        setCheck(\"Returns available lots in ascending expiration order\", () => {",
+              "            const data = pm.response.json();",
+              "            const lots = Array.isArray(data) ? data : data.lots;",
+              "            pm.expect(lots).to.be.an(\"array\").that.is.not.empty;",
+              "            const dates = lots.map(lot => lot.expireDate || lot.expirationDate);",
+              "            dates.forEach(date => pm.expect(Number.isFinite(Date.parse(date))).to.equal(true));",
+              "            pm.expect(dates.map(Date.parse)).to.eql(dates.map(Date.parse).sort((a, b) => a - b));",
+              "        });",
+              "    }",
+              "    await checked(\"rx\", \"valid\", \"CheckDB | read-only FEFO leaves stock intact\", state => {",
+              "        pm.expect(pm.variables.get(\"fefoBefore\"), \"Missing database snapshot\").to.be.ok;",
+              "        const before = JSON.parse(pm.variables.get(\"fefoBefore\"));",
+              "        pm.expect(state.lots).to.eql(before.lots);",
+              "        pm.expect(state.ledgerCount).to.equal(before.ledgerCount);",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/inventory/fefo?medicineId={{medicineId}}&quantity=5",
+        "description": "The workbook URL is preserved. This checkout has FEFO logic inside InventoryLotService but no controller mapping for this URL.",
+        "auth": {
+          "type": "noauth"
+        }
+      }
+    },
+    {
+      "name": "TC_API_004 - Submit insufficient-stock prescription",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const f = JSON.parse(pm.variables.get(\"fixture\"));",
+              "const label = \"insufficient\";",
+              "const {appointmentId, historyId} = f.histories[label];",
+              "const {id, name} = f.medicine[label];",
+              "pm.variables.set(\"rxBody\", JSON.stringify({",
+              "    appointmentId, medicalHistoryId: historyId, doctorId: f.doctorId, patientId: f.patientId,",
+              "    items: [{id: pm.variables.replaceIn(\"{{$guid}}\"), medicineId: id, name, quantity: 9999,",
+              "        unitPrice: 1000, unit: \"tablet\", dosage: \"1 tablet\", frequency: \"Daily\",",
+              "        duration: \"5 days\", instruction: \"SQA API fixture\"}]",
+              "}));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Excel Test Case ID: TC_API_004",
+              "const caseId = \"TC_API_004\";",
+              "function setCheck(name, assertion) { pm.test(caseId + \" | \" + name, assertion); }",
+              "setCheck(\"HTTP 202\", () => pm.expect([202]).to.include(pm.response.code));",
+              "    const id = pm.response.code === 202 ? pm.response.json().id : null;",
+              "    pm.variables.set(\"negativePrescriptionId\", id || \"\");",
+              "    setCheck(\"Tracking ID returned\", () => pm.expect(id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/prescription-billing-service/prescription-billings",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{rxBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "TC_API_005 - Verify insufficient-stock outcome",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "",
+              "    // Gate the read on observable processing. NONE on its own could just mean the Saga has not started.",
+              "    const deadline = Date.now() + 25000;",
+              "    pm.variables.set(\"negativeEvidence\", \"false\");",
+              "    if (pm.variables.get(\"negativePrescriptionId\")) {",
+              "        do {",
+              "            const response = await send({",
+              "                url: pm.environment.get(\"checkdbUrl\") + \"/v1/rx\", method: \"POST\",",
+              "                header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "                body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: \"insufficient\"})}",
+              "            });",
+              "            if (response.code !== 200) break;",
+              "            const observed = response.json();",
+              "            if (observed.insufficientStockLogged || observed.orders.some(order =>",
+              "                order.prescription === pm.variables.get(\"negativePrescriptionId\") &&",
+              "                [\"CANCELLED\", \"FAILED\"].includes(order.status))) {",
+              "                pm.variables.set(\"negativeEvidence\", \"true\");",
+              "                break;",
+              "            }",
+              "            await new Promise(resolve => setTimeout(resolve, 900));",
+              "        } while (Date.now() < deadline);",
+              "    }",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC_API_005",
+              "const caseId = \"TC_API_005\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 200\", () => pm.expect([200]).to.include(pm.response.code));",
+              "    setCheck(\"HTTP body reports CANCELLED, FAILED or NONE after processing\", () => {",
+              "        pm.expect(pm.variables.get(\"negativeEvidence\"), \"No evidence of processing the insufficient-stock request\").to.equal(\"true\");",
+              "        pm.expect([\"CANCELLED\", \"FAILED\", \"NONE\"]).to.include(pm.response.json().status);",
+              "    });",
+              "    await checked(\"rx\", \"insufficient\", \"CheckDB | no active order, stock charge or medicine fee\", state => {",
+              "        pm.expect(state.orders.every(order => [\"CANCELLED\", \"FAILED\"].includes(order.status))).to.equal(true);",
+              "        pm.expect(state.lots.map(lot => lot.quantity_on_hand)).to.eql([4, 4]);",
+              "        pm.expect(state.invoiceItems).to.eql([]);",
+              "        pm.expect(state.ledgerCount).to.equal(0);",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/prescription-billing-service/prescription-billings/medical-history/{{invalidHistoryId}}/status",
+        "description": "The application's gateway requires the full prescription-billing-service prefix.",
+        "auth": {
+          "type": "noauth"
+        }
+      }
+    },
+    {
+      "name": "TC_API_006 - Find dispense order",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC_API_006",
+              "const caseId = \"TC_API_006\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 200 or 404\", () => pm.expect([200, 404]).to.include(pm.response.code));",
+              "    const body = pm.response.code === 200 ? pm.response.json() : null;",
+              "    if (body && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.id) && body.medicalHistoryId === fixture().histories.valid.historyId) {",
+              "        pm.variables.set(\"dispenseOrderId\", body.id);",
+              "    }",
+              "    await checked(\"rx\", \"valid\", \"CheckDB | lookup matches the fixture's order\", state => {",
+              "        if (pm.response.code === 404) {",
+              "            pm.expect(state.orders.filter(order => order.status !== \"CANCELED\")).to.eql([]);",
+              "        } else {",
+              "            pm.expect(body.medicalHistoryId).to.equal(fixture().histories.valid.historyId);",
+              "            pm.expect(state.orders.map(order => order.id)).to.include(body.id);",
+              "        }",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/inventory-service/dispense-orders/medical-history/{{validHistoryId}}",
+        "description": "Look up the order from TC_API_002 for teardown. TC_API_005 uses a separate, insufficient-stock visit.",
+        "auth": {
+          "type": "noauth"
+        }
+      }
+    },
+    {
+      "name": "TC_API_007 - Delete dispense order",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get(\"dispenseOrderId\")) {",
+              "        console.warn(\"TC_API_007 | no matching fixture dispense order to delete (N/A)\");",
+              "        pm.execution.skipRequest();",
+              "    }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC_API_007",
+              "const caseId = \"TC_API_007\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 200 or 202 or 204\", () => pm.expect([200, 202, 204]).to.include(pm.response.code));",
+              "    await checked(\"rx\", \"valid\", \"CheckDB | the targeted dispense order was removed\", state => {",
+              "        pm.expect(state.orders.map(order => order.id)).not.to.include(pm.variables.get(\"dispenseOrderId\"));",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/inventory-service/dispense-orders/{{dispenseOrderId}}",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        }
+      }
+    },
+    {
+      "name": "PA01 cleanup - verify fixture removal",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const caseId = \"PA01 cleanup - verify fixture removal\";",
+              "function setCheck(name, assertion) { pm.test(caseId + \" | \" + name, assertion); }",
+              "",
+              "    setCheck(\"Temporary data cleanup verified\", () => {",
+              "        pm.expect(pm.response.code, pm.response.text()).to.equal(200);",
+              "        pm.expect(pm.response.json().clean).to.equal(true);",
+              "    });",
+              "    if (pm.response.code === 200) {",
+              "        pm.variables.unset(\"fixture\");",
+              "        pm.variables.unset(\"fixturePhone\");",
+              "        pm.variables.unset(\"fixturePassword\");",
+              "        pm.variables.set(\"runId\", \"\");",
+              "    }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-SQA-Key",
+            "value": "{{checkdbKey}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{checkdbUrl}}/v1/finish",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"runId\": \"{{runId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

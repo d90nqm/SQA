@@ -1,0 +1,1024 @@
+{
+  "info": {
+    "name": "DentalCareX - PA02 - Appointment and Redis Slot Lock",
+    "description": "5_tool_test.xlsx: PA02_Testcase. Select the DentalCareX PA Local environment and run the collection in order with the local CheckDB helper.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// This collection writes test fixtures. Keep targets on this machine.",
+          "for (const name of [\"baseUrl\", \"checkdbUrl\"]) {",
+          "    const url = pm.environment.get(name) || \"\";",
+          "    if (!/^http:\\/\\/(?:localhost|127\\.0\\.0\\.1):\\d+$/.test(url)) {",
+          "        throw new Error(\"Select the DentalCareX PA Local environment and keep \" + name + \" on loopback.\");",
+          "    }",
+          "    pm.variables.set(name, url);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "PA02 setup - create test fixtures",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "for (const name of [\"authToken\", \"actorId\", \"fixture\", \"appointmentId\", \"fixturePhone\", \"fixturePassword\"]) {",
+              "        pm.variables.unset(name);",
+              "    }",
+              "    pm.variables.set(\"runId\", \"\");",
+              "    pm.variables.set(\"bookingSetup\", JSON.stringify({kind: \"PA02\",",
+              "        patientPhone: pm.environment.get(\"patientPassword\") ? pm.environment.get(\"patientPhone\") : \"\"",
+              "    }));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const caseId = \"PA02 setup - create test fixtures\";",
+              "function setCheck(name, assertion) { pm.test(caseId + \" | \" + name, assertion); }",
+              "",
+              "    setCheck(\"CheckDB fixture prepared (HTTP 200)\", () =>",
+              "        pm.expect(pm.response.code, pm.response.text()).to.equal(200));",
+              "    if (pm.response.code !== 200) {",
+              "        pm.execution.setNextRequest(null);",
+              "    } else {",
+              "        const fixture = pm.response.json();",
+              "        pm.variables.set(\"runId\", fixture.runId);",
+              "        pm.variables.set(\"fixture\", JSON.stringify(fixture));",
+              "        for (const [name, value] of Object.entries(fixture)) {",
+              "            if (typeof value === \"string\") pm.variables.set(name, value);",
+              "        }",
+              "        const validMedicine = fixture.medicine && fixture.medicine.valid;",
+              "        if (validMedicine) pm.variables.set(\"medicineId\", validMedicine.id);",
+              "        if (fixture.histories) {",
+              "            pm.variables.set(\"invalidHistoryId\", fixture.histories.insufficient.historyId);",
+              "            pm.variables.set(\"validHistoryId\", fixture.histories.valid.historyId);",
+              "        }",
+              "    }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-SQA-Key",
+            "value": "{{checkdbKey}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{checkdbUrl}}/v1/begin",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{bookingSetup}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "TC-P-01 - Login (precondition)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const phone = pm.variables.get(\"fixturePhone\") || pm.environment.get(\"patientPhone\");",
+              "    const password = pm.variables.get(\"fixturePassword\") || pm.environment.get(\"patientPassword\");",
+              "    if (!phone || !password) {",
+              "        throw new Error(\"Enter patientPhone and patientPassword in the selected environment.\");",
+              "    }",
+              "    pm.variables.set(\"loginBody\", JSON.stringify({phone, password}));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Excel Test Case ID: TC-P-01",
+              "const caseId = \"TC-P-01\";",
+              "function setCheck(name, assertion) { pm.test(caseId + \" | \" + name, assertion); }",
+              "",
+              "    const token = pm.response.headers.get(\"Authorization\");",
+              "    const actor = pm.response.code === 200 ? pm.response.json() : null;",
+              "    const id = actor && actor.id;",
+              "    const expectedRole = \"PATIENT\";",
+              "    const correctRole = actor && (actor.primaryRole === expectedRole ||",
+              "        (Array.isArray(actor.roles) && actor.roles.includes(expectedRole)));",
+              "    setCheck(\"HTTP 200\", () => pm.expect(pm.response.code).to.equal(200));",
+              "    setCheck(\"JWT and actor ID returned\", () => {",
+              "        pm.expect(token).to.match(/^(Bearer )?[^.]+\\.[^.]+\\.[^.]+$/i);",
+              "        pm.expect(id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);",
+              "        pm.expect(correctRole, \"Expected role \" + expectedRole).to.equal(true);",
+              "    });",
+              "    const cleanNext = \"PA02 cleanup - verify fixture removal\";",
+              "    if (token && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || \"\") && correctRole) {",
+              "        pm.variables.set(\"authToken\", token.replace(/^Bearer\\s+/i, \"\"));",
+              "        pm.variables.set(\"actorId\", id);",
+              "        if (id !== JSON.parse(pm.variables.get(\"fixture\")).patientAId) pm.execution.setNextRequest(cleanNext);",
+              "    } else {",
+              "        pm.execution.setNextRequest(cleanNext);",
+              "    }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/user-service/users/login",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{loginBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "TC-P-02 - Hold free slot",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const f = JSON.parse(pm.variables.get(\"fixture\"));",
+              "const slot = f.slots[\"hold\"];",
+              "pm.variables.set(\"bookingBody\", JSON.stringify({doctorId: f.doctorId, patientId: f.patientAId,",
+              "    appointmentStartTime: slot, medicalServiceIds: [f.serviceId]}));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC-P-02",
+              "const caseId = \"TC-P-02\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 200\", () => pm.expect([200]).to.include(pm.response.code));setCheck(\"Response time under 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "    await checked(\"booking\", \"hold\", \"CheckDB | Redis lock belongs to patient A\", state => {",
+              "        pm.expect(state.lock).to.include(fixture().patientAId);",
+              "        pm.expect(state.rows).to.eql([]);",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/appointment-service/appointments/slots/hold",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{bookingBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "TC-P-03 - Reject already-held slot",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const f = JSON.parse(pm.variables.get(\"fixture\"));",
+              "const slot = f.slots[\"hold\"];",
+              "pm.variables.set(\"bookingBody\", JSON.stringify({doctorId: f.doctorId, patientId: f.patientBId,",
+              "    appointmentStartTime: slot, medicalServiceIds: [f.serviceId]}));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC-P-03",
+              "const caseId = \"TC-P-03\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 400 or 409\", () => pm.expect([400, 409]).to.include(pm.response.code));setCheck(\"Response time under 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "    await checked(\"booking\", \"hold\", \"CheckDB | original lock still held and no appointment created\", state => {",
+              "        pm.expect(state.lock).to.include(fixture().patientAId);",
+              "        pm.expect(state.lock).not.to.include(fixture().patientBId);",
+              "        pm.expect(state.rows).to.eql([]);",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/appointment-service/appointments/slots/hold",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{bookingBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "TC-P-04 - Release held slot",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const f = JSON.parse(pm.variables.get(\"fixture\"));",
+              "const slot = f.slots[\"hold\"];",
+              "pm.variables.set(\"bookingBody\", JSON.stringify({doctorId: f.doctorId, patientId: f.patientAId,",
+              "    appointmentStartTime: slot, medicalServiceIds: [f.serviceId]}));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC-P-04",
+              "const caseId = \"TC-P-04\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 200\", () => pm.expect([200]).to.include(pm.response.code));setCheck(\"Response time under 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "    await checked(\"booking\", \"hold\", \"CheckDB | Redis slot removed\", state => {",
+              "        pm.expect(state.lock).to.equal(\"\");",
+              "        pm.expect(state.rows).to.eql([]);",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/appointment-service/appointments/slots/release",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{bookingBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "TC-P-05 - Create appointment",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "",
+              "const f = JSON.parse(pm.variables.get(\"fixture\"));",
+              "const slot = f.slots[\"create\"];",
+              "pm.variables.set(\"bookingBody\", JSON.stringify({doctorId: f.doctorId, patientId: f.patientAId,",
+              "    appointmentStartTime: slot, medicalServiceIds: [f.serviceId]}));",
+              "",
+              "    // Acquire the second slot before the timed POST. Postman measures only the create request.",
+              "    const base = pm.environment.get(\"baseUrl\") + \"/appointment-service/appointments/slots/\";",
+              "    const headers = {\"Content-Type\": \"application/json\", \"Authorization\": \"Bearer \" + pm.variables.get(\"authToken\")};",
+              "    const body = {mode: \"raw\", raw: pm.variables.get(\"bookingBody\")};",
+              "    for (const step of [\"release\", \"hold\"]) {",
+              "        const response = await send({url: base + step, method: \"POST\", header: headers, body});",
+              "        pm.test(\"TC-P-05 | precondition \" + step + \" returns 200\", () =>",
+              "            pm.expect(response.code, response.text()).to.equal(200));",
+              "        if (response.code !== 200) {",
+              "            pm.execution.skipRequest();",
+              "            break;",
+              "        }",
+              "    }",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC-P-05",
+              "const caseId = \"TC-P-05\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 201\", () => pm.expect([201]).to.include(pm.response.code));setCheck(\"Response time under 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "    const f = fixture();",
+              "    const appointment = pm.response.code === 201 ? pm.response.json() : {};",
+              "    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(appointment.id || \"\")) pm.variables.set(\"appointmentId\", appointment.id);",
+              "    setCheck(\"Created appointment matches the booking\", () => {",
+              "        pm.expect(appointment.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);",
+              "        pm.expect(appointment).to.include({doctorId: f.doctorId, patientId: f.patientAId, status: \"CONFIRMED\"});",
+              "    });",
+              "    await checked(\"booking\", \"create\", \"CheckDB | CONFIRMED appointment, selected service and released lock\", state => {",
+              "        // Recover the dependent fixture ID from PostgreSQL even if the API body fails its assertions.",
+              "        const row = state.rows.find(item => item.doctor_id === f.doctorId && item.patient_id === f.patientAId);",
+              "        if (row && !pm.variables.get(\"appointmentId\")) pm.variables.set(\"appointmentId\", row.id);",
+              "        pm.expect(state.rows).to.have.lengthOf(1);",
+              "        pm.expect(row).to.include({id: appointment.id, status: \"CONFIRMED\"});",
+              "        pm.expect(row.services).to.eql([f.serviceId]);",
+              "        pm.expect(state.lock).to.equal(\"\");",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/appointment-service/appointments",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{bookingBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "TC-P-06 - Get appointment by ID",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get(\"appointmentId\")) {",
+              "        console.warn(\"Dependent appointment case skipped because TC-P-05 produced no fixture ID.\");",
+              "        pm.execution.skipRequest();",
+              "    }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC-P-06",
+              "const caseId = \"TC-P-06\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 200\", () => pm.expect([200]).to.include(pm.response.code));",
+              "    const f = fixture();",
+              "    setCheck(\"Appointment identity, fields and time range\", () => {",
+              "        const appointment = pm.response.json();",
+              "        pm.expect(appointment).to.include({id: pm.variables.get(\"appointmentId\"), doctorId: f.doctorId,",
+              "            patientId: f.patientAId, status: \"CONFIRMED\"});",
+              "        pm.expect(Date.parse(appointment.appointmentStartTime)).to.equal(Date.parse(f.slots.create));",
+              "        pm.expect(Date.parse(appointment.appointmentEndTime)).to.be.greaterThan(Date.parse(f.slots.create));",
+              "    });",
+              "    await checked(\"booking\", \"create\", \"CheckDB | same ID remains CONFIRMED\", state => {",
+              "        pm.expect(state.rows).to.have.lengthOf(1);",
+              "        pm.expect(state.rows[0]).to.include({id: pm.variables.get(\"appointmentId\"), status: \"CONFIRMED\"});",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/appointment-service/appointments/{{appointmentId}}",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        }
+      }
+    },
+    {
+      "name": "TC-P-07 - Cancel appointment",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get(\"appointmentId\")) {",
+              "        console.warn(\"Dependent appointment case skipped because TC-P-05 produced no fixture ID.\");",
+              "        pm.execution.skipRequest();",
+              "    }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC-P-07",
+              "const caseId = \"TC-P-07\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 200\", () => pm.expect([200]).to.include(pm.response.code));",
+              "    setCheck(\"Response status is CANCELLED\", () => pm.expect(pm.response.json().status).to.equal(\"CANCELLED\"));",
+              "    await checked(\"booking\", \"create\", \"CheckDB | appointment.status is CANCELLED\", state => {",
+              "        pm.expect(state.rows).to.have.lengthOf(1);",
+              "        pm.expect(state.rows[0]).to.include({id: pm.variables.get(\"appointmentId\"), status: \"CANCELLED\"});",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/appointment-service/appointments/{{appointmentId}}/status?status=CANCELLED",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        }
+      }
+    },
+    {
+      "name": "TC-P-08 - Delete appointment",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get(\"appointmentId\")) {",
+              "        console.warn(\"Dependent appointment case skipped because TC-P-05 produced no fixture ID.\");",
+              "        pm.execution.skipRequest();",
+              "    }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC-P-08",
+              "const caseId = \"TC-P-08\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 204\", () => pm.expect([204]).to.include(pm.response.code));",
+              "    await checked(\"booking\", \"create\", \"CheckDB | no active appointment remains\", state => {",
+              "        pm.expect(state.rows.every(row => row.status === \"CANCELLED\")).to.equal(true);",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/appointment-service/appointments/{{appointmentId}}",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        }
+      }
+    },
+    {
+      "name": "TC-P-09 - Reject booking without holding a slot",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const f = JSON.parse(pm.variables.get(\"fixture\"));",
+              "const slot = f.slots[\"absent\"];",
+              "pm.variables.set(\"bookingBody\", JSON.stringify({doctorId: f.doctorId, patientId: f.patientAId,",
+              "    appointmentStartTime: slot, medicalServiceIds: [f.serviceId]}));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Callback bridge works in both Postman Desktop and Newman.",
+              "function send(request) {",
+              "    return new Promise((resolve, reject) => {",
+              "        pm.sendRequest(request, (error, response) => error ? reject(error) : resolve(response));",
+              "    });",
+              "}",
+              "const pending = setInterval(() => {}, 500);",
+              "(async () => {",
+              "// Excel Test Case ID: TC-P-09",
+              "const caseId = \"TC-P-09\";",
+              "",
+              "// Invoke only a named CheckDB operation for this iteration's isolated fixtures.",
+              "async function checkDB(path, label) {",
+              "    const response = await send({",
+              "        url: pm.environment.get(\"checkdbUrl\") + \"/v1/\" + path,",
+              "        method: \"POST\",",
+              "        header: {\"Content-Type\": \"application/json\", \"X-SQA-Key\": pm.environment.get(\"checkdbKey\")},",
+              "        body: {mode: \"raw\", raw: JSON.stringify({runId: pm.variables.get(\"runId\"), label: label})}",
+              "    });",
+              "    if (response.code !== 200) throw new Error(\"CheckDB HTTP \" + response.code + \": \" + response.text());",
+              "    return response.json();",
+              "}",
+              "function fixture() {",
+              "    return JSON.parse(pm.variables.get(\"fixture\"));",
+              "}",
+              "function setCheck(name, assertion) {",
+              "    pm.test(caseId + \" | \" + name, assertion);",
+              "}",
+              "async function checked(path, label, name, assertion) {",
+              "    try {",
+              "        const observed = await checkDB(path, label);",
+              "        setCheck(name, () => assertion(observed));",
+              "    } catch (error) {",
+              "        setCheck(name, () => { throw error; });",
+              "    }",
+              "}",
+              "setCheck(\"HTTP 400 or 409\", () => pm.expect([400, 409]).to.include(pm.response.code));setCheck(\"Response time under 500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "    await checked(\"booking\", \"absent\", \"CheckDB | no lock and no appointment was created\", state => {",
+              "        pm.expect(state.lock).to.equal(\"\");",
+              "        pm.expect(state.rows).to.eql([]);",
+              "    });",
+              "",
+              "})().catch(error => {",
+              "    pm.test(pm.info.requestName + \" | Script completed\", () => { throw error; });",
+              "    if (pm.info.eventName === \"prerequest\") pm.execution.skipRequest();",
+              "}).finally(() => clearInterval(pending));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/appointment-service/appointments",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{bookingBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "PA02 cleanup - verify fixture removal",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const caseId = \"PA02 cleanup - verify fixture removal\";",
+              "function setCheck(name, assertion) { pm.test(caseId + \" | \" + name, assertion); }",
+              "",
+              "    setCheck(\"Temporary data cleanup verified\", () => {",
+              "        pm.expect(pm.response.code, pm.response.text()).to.equal(200);",
+              "        pm.expect(pm.response.json().clean).to.equal(true);",
+              "    });",
+              "    if (pm.response.code === 200) {",
+              "        pm.variables.unset(\"fixture\");",
+              "        pm.variables.unset(\"fixturePhone\");",
+              "        pm.variables.unset(\"fixturePassword\");",
+              "        pm.variables.set(\"runId\", \"\");",
+              "    }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-SQA-Key",
+            "value": "{{checkdbKey}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{checkdbUrl}}/v1/finish",
+        "description": "",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"runId\": \"{{runId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
